@@ -1,15 +1,22 @@
+// Robert Smith, Brian Thervil, Nick Watts
+// Fall 2019
+// COP4610 Operating Systems
+// Project 1
+
 #include <sys/wait.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+// Struct utilized for commands and parameters
 typedef struct
 {
   char** tokens;
   int numTokens;
 } instruction;
 
+// Declaring Functions
 void loop();
 void addToken(instruction* instr_ptr, char* tok);
 void printTokens(instruction* instr_ptr);
@@ -17,6 +24,7 @@ void clearInstruction(instruction* instr_ptr);
 void addNull(instruction* instr_ptr);
 void execInstruction(instruction* instr_ptr);
 
+// Main funcion that loops the process
 int main()
 {
   loop();
@@ -24,6 +32,8 @@ int main()
   return 0;
 }
 
+// Function that loops user input, parsing the input, then execute
+// Code from parser_help.c
 void loop()
 {
   char* token = NULL;
@@ -35,8 +45,12 @@ void loop()
   
   while(1)
   {
-    printf("USER@MACHINE: ");
-    
+    printf(getenv("USER"));
+    printf("@");
+    printf(getenv("MACHINE"));
+    printf(":");
+    printf(getenv("PWD"));
+    printf(">");    
     do
     {
       scanf("%ms", &token);
@@ -79,7 +93,8 @@ void loop()
     } while ('\n' != getchar());
     
     addNull(&instr);
-    printTokens(&instr);
+//    printTokens(&instr);
+    execInstruction(&instr);	// Our code to execute commands after entry
     clearInstruction(&instr);  
   }
 }
@@ -133,10 +148,60 @@ void clearInstruction(instruction* instr_ptr)
 	instr_ptr->numTokens = 0;
 }
 
+// Function Block that handles the execution of commands
 void execInstruction(instruction* instr_ptr)
 {
-  if (strcmp(instr.ptr->tokens[0], "echo") == 0)
-  {
-	  printf("%s\n",getenv(instr.ptr->tokens[1]);
-  }
+	char * command[2];
+	command[0] = "echo";
+	command[1] = "cd";
+
+	if (strcmp(instr_ptr->tokens[0], command[0]) == 0)
+	{
+		if (instr_ptr->tokens[1][0] == '$')
+		{
+			char temp[strlen(instr_ptr->tokens[1]) - 1];
+			int i;
+			for (i = 0; i < (strlen(instr_ptr->tokens[1]) -1); i++)
+			{
+				temp[i] = toupper(instr_ptr->tokens[1][i+1]);
+			}
+			
+			char * var = getenv(temp);
+			if (var != NULL)
+			{
+				printf("%s\n",var);
+			}
+			else
+			{
+				printf("%s\n", "Variable error");
+			}
+		}
+		else if (instr_ptr->tokens[1][0] == '"') 	// There is a segmentation fault within this block of code
+		{						
+			int i = 1;
+			while (i < (instr_ptr->numTokens - 2))	// Works when you subtract 2, but cuts off the last word
+			{					// Faults if you subtract by 1
+				printf(instr_ptr->tokens[i]);	// May need to change to a for loop
+				printf(" ");
+				i++;
+				if (instr_ptr->tokens[i][0] == '|')
+				{
+					break;
+				}
+			}
+			printf("\n");
+		}
+		else	
+		{
+			printf("%s\n", instr_ptr->tokens[1]);
+		}
+	}
+	else if (strcmp(instr_ptr->tokens[0],command[1]) == 0)	// Started to work on cd command
+	{							// It doesn't crash when you use it
+		chdir(instr_ptr->tokens[1]);			// But doesn't update the PWD visually
+	}
+	else
+	{
+		printf("%s\n", "not a valid command");
+	}
 }
