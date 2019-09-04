@@ -15,6 +15,7 @@ void addToken(instruction* instr_ptr, char* tok);
 void printTokens(instruction* instr_ptr);
 void clearInstruction(instruction* instr_ptr);
 void addNull(instruction* instr_ptr);
+void execInstruction(instruction* instr_ptr);
 
 int main()
 {
@@ -130,4 +131,15 @@ void clearInstruction(instruction* instr_ptr)
 
 	instr_ptr->tokens = NULL;
 	instr_ptr->numTokens = 0;
+}
+
+void execInstruction(instruction* instr_ptr)
+{
+  if (strcmp(instr.ptr->tokens[0], "echo") == 0)
+  {
+	  printf("%s\n",getenv(instr.ptr->tokens[1]);
+  }
+}		 
+	
+	
 }
