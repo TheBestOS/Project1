@@ -4,6 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct
+{
+  char** tokens;
+  int numTokens;
+} instruction;
+
 void loop();
 void addToken(instruction* instr_ptr, char* tok);
 void printTokens(instruction* instr_ptr);
@@ -17,12 +23,6 @@ int main()
   return 0;
 }
 
-typedef struct
-{
-  char** tokens;
-  int numOfTokens;
-} instruction;
-
 void loop()
 {
   char* token = NULL;
@@ -30,7 +30,7 @@ void loop()
   
   instruction instr;
   instr.tokens = NULL;
-  instr.numOfTokens = 0;
+  instr.numTokens = 0;
   
   while(1)
   {
@@ -74,7 +74,7 @@ void loop()
       free(temp);
       
       token = NULL;
-      temp = NULL:
+      temp = NULL;
     } while ('\n' != getchar());
     
     addNull(&instr);
