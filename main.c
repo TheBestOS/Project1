@@ -139,7 +139,4 @@ void execInstruction(instruction* instr_ptr)
   {
 	  printf("%s\n",getenv(instr.ptr->tokens[1]);
   }
-}		 
-	
-	
 }
