@@ -155,19 +155,21 @@ void execInstruction(instruction* instr_ptr)
 	command[0] = "echo";
 	command[1] = "cd";
 
-	if (strcmp(instr_ptr->tokens[0], command[0]) == 0)
+	if (strcmp(instr_ptr->tokens[0], command[0]) == 0)	// Echo command
 	{
-		if (instr_ptr->tokens[1][0] == '$')
+		char * buffer;
+
+		if (instr_ptr->tokens[1][0] == '$')	// Env Variable
 		{
-			char temp[strlen(instr_ptr->tokens[1]) - 1];
+			buffer = malloc(strlen(instr_ptr->tokens[1]) - 1);
 			int i;
 			for (i = 0; i < (strlen(instr_ptr->tokens[1]) -1); i++)
 			{
-				temp[i] = toupper(instr_ptr->tokens[1][i+1]);
+				buffer[i] = toupper(instr_ptr->tokens[1][i+1]);
 			}
 			
-			char * var = getenv(temp);
-			if (var != NULL)
+			char * var = getenv(buffer);
+				if (var != NULL)
 			{
 				printf("%s\n",var);
 			}
@@ -176,29 +178,45 @@ void execInstruction(instruction* instr_ptr)
 				printf("%s\n", "Variable error");
 			}
 		}
-		else if (instr_ptr->tokens[1][0] == '"') 	// There is a segmentation fault within this block of code
+		else if (instr_ptr->tokens[1][0] == '"')	// Quoted string
 		{						
-			int i = 1;
-			while (i < (instr_ptr->numTokens - 2))	// Works when you subtract 2, but cuts off the last word
-			{					// Faults if you subtract by 1
-				printf(instr_ptr->tokens[i]);	// May need to change to a for loop
-				printf(" ");
-				i++;
-				if (instr_ptr->tokens[i][0] == '|')
+			int i;
+			for (i = 1; i < (instr_ptr->numTokens - 1); i++)
+			{				
+				if (instr_ptr->tokens[i][0] != '|')
+				{
+					printf(instr_ptr->tokens[i]);
+					printf(" ");
+				}
+				else
 				{
 					break;
 				}
 			}
 			printf("\n");
 		}
-		else	
+		else	// direct/file display
 		{
-			printf("%s\n", instr_ptr->tokens[1]);
+			FILE * file = fopen(instr_ptr->tokens[1], "r");
+
+			if (file == NULL)
+			{
+				printf("%s\n", instr_ptr->tokens[1]);
+			}
+			else
+			{
+				buffer = malloc(255 * sizeof(char));
+				fgets(buffer,255, (FILE*) file);
+				printf(buffer);
+			}
 		}
 	}
 	else if (strcmp(instr_ptr->tokens[0],command[1]) == 0)	// Started to work on cd command
 	{							// It doesn't crash when you use it
-		chdir(instr_ptr->tokens[1]);			// But doesn't update the PWD visually
+		if (chdir(instr_ptr->tokens[1]) != 0)		// But doesn't update the PWD visually
+		{
+			printf("%s\n", "chdir failed");
+		}			
 	}
 	else
 	{
