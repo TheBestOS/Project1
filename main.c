@@ -52,8 +52,7 @@ void loop()
     printf(getenv("PWD"));
     printf(" > ");
 
-    if ('\n' != getchar())
-    {
+  
     	do
     	{
     	  scanf("%ms", &token);
@@ -133,7 +132,7 @@ void loop()
       	  //Because I don't yet understand how the temp cstring is being appended to the instr pointer, and what that changes,
       	  //this code may need to be updated by you guys. However, the steps above should be the logic for shortcut resolution,
       	  //barring relative paths
-
+		
       		if (start < strlen(token))
       		{
         		memcpy(temp, token + start, strlen(token) - start);
@@ -148,10 +147,10 @@ void loop()
       	temp = NULL;
     	} while ('\n' != getchar());
   		addNull(&instr);
-//    printTokens(&instr);
+	//	printTokens(&instr);
    		execInstruction(&instr);	// Our code to execute commands after entry
     	clearInstruction(&instr);
-	}    
+   
   }
 }
 
@@ -207,75 +206,67 @@ void clearInstruction(instruction* instr_ptr)
 // Function Block that handles the execution of commands
 void execInstruction(instruction* instr_ptr)
 {
-	char * command[2];
-	command[0] = "echo";
-	command[1] = "cd";
-
-	if (strcmp(instr_ptr->tokens[0], command[0]) == 0)	// Echo command
+	char *action[instr_ptr->numTokens];
+	char *bin="/bin/";
+	int i=0;
+	int j=0;
+	pid_t pid;
+	for (i=0; i<instr_ptr->numTokens; i++)
 	{
-		char * buffer;
-
-		if (instr_ptr->tokens[1][0] == '$')	// Env Variable
-		{
-			buffer = malloc(strlen(instr_ptr->tokens[1]) - 1);
-			int i;
-			for (i = 0; i < (strlen(instr_ptr->tokens[1]) -1); i++)
-			{
-				buffer[i] = toupper(instr_ptr->tokens[1][i+1]);
-			}
-			
-			char * var = getenv(buffer);
-				if (var != NULL)
-			{
-				printf("%s\n",var);
+		action[i]=NULL;
+	}
+	do
+	{	
+	
+		//printf("%s\n", action[0]);
+		for( j=0; instr_ptr->tokens[i] != "|"; j++)
+		{	printf("%s\n",j);
+			if(j==0)
+			{	printf("%s\n", "hi");	
+				action[0]=malloc((10+sizeof(instr_ptr->tokens[i]))*sizeof(char));
+				
+				
+				action[0]=bin;;
+				
+				strcat(action[0],instr_ptr->tokens[i]);
+				
+				action[0][strlen(action[0])]='\0';
+				printf("%s\n", action[0]);
 			}
 			else
 			{
-				printf("%s\n", "Variable error");
+				memcpy(action[j], instr_ptr->tokens[i], strlen(instr_ptr->tokens[i]));
 			}
-		}
-		else if (instr_ptr->tokens[1][0] == '"')	// Quoted string
-		{						
-			int i;
-			for (i = 1; i < (instr_ptr->numTokens - 1); i++)
-			{				
-				if (instr_ptr->tokens[i][0] != '|')
-				{
-					printf(instr_ptr->tokens[i]);
-					printf(" ");
-				}
-				else
-				{
-					break;
-				}
-			}
-			printf("\n");
-		}
-		else	// direct/file display
-		{
-			FILE * file = fopen(instr_ptr->tokens[1], "r");
 
-			if (file == NULL)
+			if(instr_ptr->tokens[i]==NULL)
 			{
-				printf("%s\n", instr_ptr->tokens[1]);
+				action[j]=NULL;
+				break;
 			}
-			else
-			{
-				buffer = malloc(255 * sizeof(char));
-				fgets(buffer,255, (FILE*) file);
-				printf(buffer);
-			}
+			printf("%s\n", action);
+		i++;
 		}
-	}
-	else if (strcmp(instr_ptr->tokens[0],command[1]) == 0)	// Started to work on cd command
-	{							// It doesn't crash when you use it
-		if (chdir(instr_ptr->tokens[1]) != 0)		// But doesn't update the PWD visually
+
+		i++;
+		pid = fork();
+		if (pid < 0)
 		{
-			printf("%s\n", "chdir failed");
-		}			
-	}
-	else
-	{
-		printf("%s\n", "not a valid command");
-	}
+			printf("problem executing $s\n");
+		}
+		else if( pid==0)
+		{
+			if(execv(action[0], action)==-1)
+			{
+				perror("problem");
+
+			}
+
+		}
+		else
+		{
+			waitpid(pid, NULL, 0);
+		}
+
+
+	}while(instr_ptr->tokens[i] != NULL);
 }
