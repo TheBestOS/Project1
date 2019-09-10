@@ -23,6 +23,7 @@ void printTokens(instruction* instr_ptr);
 void clearInstruction(instruction* instr_ptr);
 void addNull(instruction* instr_ptr);
 void execInstruction(instruction* instr_ptr);
+void execCommand(instruction * ptr);
 
 // Main funcion that loops the process
 int main()
@@ -206,67 +207,60 @@ void clearInstruction(instruction* instr_ptr)
 // Function Block that handles the execution of commands
 void execInstruction(instruction* instr_ptr)
 {
-	char *action[instr_ptr->numTokens];
-	char *bin="/bin/";
-	int i=0;
-	int j=0;
-	pid_t pid;
-	for (i=0; i<instr_ptr->numTokens; i++)
-	{
-		action[i]=NULL;
-	}
-	do
-	{	
+	instruction command;	// Created an incstruction object
+	command.tokens = NULL;	// which will hold individual commands
+	command.numTokens = 0;	// before being cleared every | or NULL
+
+	int i = 0;
 	
-		//printf("%s\n", action[0]);
-		for( j=0; instr_ptr->tokens[i] != "|"; j++)
-		{	printf("%s\n",j);
-			if(j==0)
-			{	printf("%s\n", "hi");	
-				action[0]=malloc((10+sizeof(instr_ptr->tokens[i]))*sizeof(char));
-				
-				
-				action[0]=bin;;
-				
-				strcat(action[0],instr_ptr->tokens[i]);
-				
-				action[0][strlen(action[0])]='\0';
-				printf("%s\n", action[0]);
-			}
-			else
-			{
-				memcpy(action[j], instr_ptr->tokens[i], strlen(instr_ptr->tokens[i]));
-			}
-
-			if(instr_ptr->tokens[i]==NULL)
-			{
-				action[j]=NULL;
-				break;
-			}
-			printf("%s\n", action);
-		i++;
-		}
-
-		i++;
-		pid = fork();
-		if (pid < 0)
+	for(i = 0; i < instr_ptr->numTokens - 1; i++)	// For loop to go through the whole line of commands
+	{	
+		char bin[]="/bin/"; 
+		if (command.numTokens == 0)	// If individual instruction is empty, then adds address of commands before being added as token
 		{
-			printf("problem executing $s\n");
+			strcat(bin, instr_ptr->tokens[i]);
+			addToken(&command,bin);
 		}
-		else if( pid==0)
+		else if ((char)instr_ptr->tokens[i][0] != (char)'|')	// Collects arguments before | or end of whole instruction
 		{
-			if(execv(action[0], action)==-1)
-			{
-				perror("problem");
-
-			}
-
+			addToken(&command, instr_ptr->tokens[i]);
 		}
-		else
+		else	// Executes individual command if separator cones through and resets command for next group
 		{
-			waitpid(pid, NULL, 0);
+			addNull(&command);
+			execCommand(&command);
+			clearInstruction(&command);
 		}
+	}
 
+	if (command.numTokens != 0)	// Executes last command
+	{
+		addNull(&command);
+		execCommand(&command);
+		clearInstruction(&command);
+	}
+}
 
-	}while(instr_ptr->tokens[i] != NULL);
+// Function to execute a set of commands
+void execCommand(instruction * ptr)
+{
+	pid_t pid;
+	int status;
+
+	pid = fork();
+	if (pid == 0)
+	{
+		if (execv(ptr->tokens[0], ptr->tokens) == -1)
+		{
+			perror("Invalid Command");
+		}
+	}
+	else if (pid < 0)
+	{
+		perror("Error");
+	}
+	else
+	{
+		waitpid(pid, &status, 0);
+	}
 }
