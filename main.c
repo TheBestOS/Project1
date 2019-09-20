@@ -8,24 +8,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 
+//
 // Struct utilized for commands and parameters
+//
 typedef struct
 {
   char** tokens;
   int numTokens;
 } instruction;
 
+//
 // Declaring Functions
+//
 void loop();
 void addToken(instruction* instr_ptr, char* tok);
 void printTokens(instruction* instr_ptr);
 void clearInstruction(instruction* instr_ptr);
 void addNull(instruction* instr_ptr);
 void execInstruction(instruction* instr_ptr);
-void execCommand(instruction * ptr);
+void execCommand(instruction * ptr, instruction * in, instruction * out, int background);
+void execPipe(instruction * ptr, instruction * p, int background);
 
+//
 // Main funcion that loops the process
+//
 int main()
 {
   loop();
@@ -33,8 +41,12 @@ int main()
   return 0;
 }
 
-// Function that loops user input, parsing the input, then execute
+//
+// Function that loops user input, parsing the input, 
+// expanding variables, executing builtins then executing the rest
+//
 // Code from parser_help.c
+//
 void loop()
 {
   char* token = NULL;
@@ -53,7 +65,6 @@ void loop()
     printf(getenv("PWD"));
     printf(" > ");
 
-  
     	do
     	{
     	  scanf("%ms", &token);
@@ -79,67 +90,13 @@ void loop()
           
           		start = i+1;
           	}
-
-          	/*----------FOR NICK-------------
-          	Shortcut Resolution Scheme
-				5) If a relative path is used (doesn't start with root or home)
-					then concatenate the argument string to the $PWD
-				6) If a file occurs in an argument string, it must be placed at
-					the end
-				7) Return an error if the directory or file doesn't exist
-			----------------------------------*/
-
-
-          	else if (token[i] == '.')
-          	{
-          		char* cur_addr = getenv("PWD");
-
-          		if (token[i + 1] == '.')
-          		{
-          			i++; //so the next loop of the for loop isn't stuck on the second '.' in ".."
-          			int final_slash = 0, j = 0;
-
-          			//This for loop finds the location of the final slash so the current directory
-          			//will be chopped off, giving the abs. path for the parent directory.
-          			for (j; j < strlen(cur_addr); j++)
-          				if(cur_addr[j] == '/')
-          					final_slash = j;
-          			memcpy(temp, cur_addr, final_slash + 1);
-          			free(cur_addr);
-          			cur_addr = NULL;
-          			//This captures the parent directory and stores it in temp, but it causes a seg fault when
-          			//used with "cd" command.
-          		}
-          		else
-          		{
-          			//This should take PWD and place it in *token in place of '.'
-          			memcpy(temp, cur_addr, strlen(cur_addr) - 1);
-          			free(cur_addr);
-          			cur_addr = NULL;
-          		}
-          	}
-          	else if (token[i] == '~')
-          	{
-          		//This if block should capture the $HOME variable and replace the ~ in
-          		// *token with that path string. I don't know if this will do that, though
-          		// due to unfamiliarity with memcpy and Cstrings 
-          		char* home_addr = getenv("HOME");
-          		memcpy(temp, home_addr, strlen(home_addr) - 1);
-          		free(home_addr);
-          		home_addr = NULL;
-          	}
-      	  }
-      
-      	  //Because I don't yet understand how the temp cstring is being appended to the instr pointer, and what that changes,
-      	  //this code may need to be updated by you guys. However, the steps above should be the logic for shortcut resolution,
-      	  //barring relative paths
-		
-      		if (start < strlen(token))
-      		{
-        		memcpy(temp, token + start, strlen(token) - start);
-        		temp[i - start] = '\0';
-        		addToken(&instr, temp);
-      		}
+	}	
+      	if (start < strlen(token))
+      	{
+        	memcpy(temp, token + start, strlen(token) - start);
+        	temp[i - start] = '\0';
+        	addToken(&instr, temp);
+      	}
       
       	free(token);
       	free(temp);
@@ -147,12 +104,12 @@ void loop()
       	token = NULL;
       	temp = NULL;
     	} while ('\n' != getchar());
-  		addNull(&instr);
-	//	printTokens(&instr);
-   		execInstruction(&instr);	// Our code to execute commands after entry
+
+  	addNull(&instr);
+//	printTokens(&instr);
+   	execInstruction(&instr);	// Our code to execute commands after entry
     	clearInstruction(&instr);
-   
-  }
+    }
 }
 
 void addToken(instruction* instr_ptr, char* tok)
@@ -204,55 +161,163 @@ void clearInstruction(instruction* instr_ptr)
 	instr_ptr->numTokens = 0;
 }
 
+//
 // Function Block that handles the execution of commands
+// Parses commands into single events separated by pipes or IO redirect
+//
 void execInstruction(instruction* instr_ptr)
 {
-	instruction command;	// Created an incstruction object
-	command.tokens = NULL;	// which will hold individual commands
-	command.numTokens = 0;	// before being cleared every | or NULL
+	instruction command, in, out, pi;	// Created an incstruction object
+	command.tokens = in.tokens = out.tokens = pi.tokens = NULL;	// which will hold individual commands
+	command.numTokens = in.numTokens = out.numTokens = pi.numTokens = 0;	// before being cleared every | or NULL
+	int p = 0;
+	int i = 0;					// i for for loop
+	int background = 0;				// counter for background processes
 
-	int i = 0;
-	
 	for(i = 0; i < instr_ptr->numTokens - 1; i++)	// For loop to go through the whole line of commands
-	{	
-		char bin[]="/bin/"; 
-		if (command.numTokens == 0)	// If individual instruction is empty, then adds address of commands before being added as token
+	{
+		if (p == 0)	// If individual instruction is empty, then adds address of commands before being added as token
 		{
-			strcat(bin, instr_ptr->tokens[i]);
-			addToken(&command,bin);
+			if ((char)instr_ptr->tokens[i][0] == '&') // Keeps index of background processes
+                        {
+                                background = i;
+                        }
+                        else if ((char)instr_ptr->tokens[i][0] == (char)'<')    // Keeps index of input redirection
+                        {
+                                addToken(&in, instr_ptr->tokens[i + 1]);
+                        }
+                        else if ((char)instr_ptr->tokens[i][0] == (char)'>')    // Keeps index of output redirection
+                        {
+                                addToken(&out, instr_ptr->tokens[i + 1]);
+                        }
+			else if ((char)instr_ptr->tokens[i][0] == (char)'|')
+			{
+				p++;
+			}
+                        else if ((in.numTokens == 0) && (out.numTokens == 0))
+                        {
+                                addToken(&command, instr_ptr->tokens[i]);
+                        }
 		}
-		else if ((char)instr_ptr->tokens[i][0] != (char)'|')	// Collects arguments before | or end of whole instruction
+		else	// Keeps index of second command
 		{
-			addToken(&command, instr_ptr->tokens[i]);
-		}
-		else	// Executes individual command if separator cones through and resets command for next group
-		{
-			addNull(&command);
-			execCommand(&command);
-			clearInstruction(&command);
+			addToken(&pi, instr_ptr->tokens[i]);
 		}
 	}
 
-	if (command.numTokens != 0)	// Executes last command
+	addNull(&command);	//Add a NULL to all instructions
+	addNull(&in);
+	addNull(&out);
+	addNull(&pi);
+
+	if (p > 0)	// Executes Pipes or IO Redirect
 	{
-		addNull(&command);
-		execCommand(&command);
-		clearInstruction(&command);
+		execPipe(&command, &pi, background);
+	}
+	else
+	{
+		execCommand(&command, &in, &out, background);
+	}
+
+	clearInstruction(&command);	// Clear memory
+        clearInstruction(&out);
+        clearInstruction(&in);
+        clearInstruction(&pi);
+	background = 0;
+	p = 0;
+}
+
+//
+// Function to execute piping
+// Code used from lecture slides
+//
+void execPipe(instruction * command, instruction * p, int back)
+{
+	int status, status2;
+	int fd[2];
+	int pid2;
+	int pid = fork();
+	if (pid == 0)
+	{
+		pipe(fd);
+		pid2 = fork();
+		if (pid2 == 0)
+		{
+			close(STDOUT_FILENO);
+			dup(fd[1]);
+			close(fd[0]);
+			close(fd[1]);
+			if (execv(command->tokens[0], command->tokens) == -1)
+			{
+				perror("Invalid Command:");
+			}
+		}
+		else if (pid2 == -1)
+		{
+			perror("Piping error");
+		}
+		else
+		{
+			close(STDIN_FILENO);
+			dup(fd[0]);
+			close(fd[0]);
+			close(fd[1]);
+			if (execv(p->tokens[0],p->tokens) == -1)
+			{
+				perror("Invalid Command:");
+			}
+		}
+	}
+	else if (pid == -1)
+	{
+		perror("Pipe error");
+	}
+	else
+	{
+		waitpid(pid, &status, 0);
+		waitpid(pid2, &status2, 0);
 	}
 }
 
-// Function to execute a set of commands
-void execCommand(instruction * ptr)
+//
+// Function to execute normal or IO commands
+//
+void execCommand(instruction * command, instruction * in, instruction * out, int background)
 {
 	pid_t pid;
 	int status;
+	int fd_in;
+	int fd_out;
 
 	pid = fork();
+	
 	if (pid == 0)
 	{
-		if (execv(ptr->tokens[0], ptr->tokens) == -1)
+	        if (in->tokens[0] != NULL)           
+	        {
+	                int fd_in = open(in->tokens[0], O_RDONLY);
+	                if (fd_in > -1)         // Replace stdin with file '<'
+        	        {
+        	                close(STDIN_FILENO);
+        	                dup(fd_in);
+        	                close(fd_in);
+        	        }
+	        }        
+
+	        if (out->tokens[0] != NULL)
+	        {
+	                int fd_out = open(out->tokens[0], O_RDWR | O_CREAT | O_TRUNC, 0600);
+	                if (fd_out > -1)        // Replace stdout with file '>'
+	                {
+	                        close(STDOUT_FILENO);
+	                        dup(fd_out);
+		                close(fd_out);
+                	}
+	        }
+		
+		if (execv(command->tokens[0], command->tokens) == -1)
 		{
-			perror("Invalid Command");
+			perror("Invalid Command!!!!!");
 		}
 	}
 	else if (pid < 0)
